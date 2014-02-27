@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">FirstApp</string>
+    <string name="action_settings">driving</string>
+    <string name="action_settings">walking</string>
+    <string name="action_settings">bicycling</string>
+    <string name="action_settings">transit</string>
+</resources>

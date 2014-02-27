@@ -1,0 +1,352 @@
+package com.dchk.firstapp;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+import org.json.JSONObject;
+
+import android.content.Context;
+import android.graphics.Color;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.support.v4.app.FragmentActivity;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.Toast;
+
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.GoogleMap.OnMapClickListener;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
+
+public class MainActivity extends FragmentActivity {
+	static final String TAG = "GoogleMap";
+	static final LatLng HK_POINT = new LatLng(22.2824594, 114.1571175);
+	private GoogleMap map;
+	ArrayList<LatLng> markerPoints;
+
+	static final String TRAVEL_MODE_DRIVING = "driving";
+	static final String TRAVEL_MODE_WALKING = "walking";
+	static final String TRAVEL_MODE_BICYCLING = "bicycling";
+	static final String TRAVEL_MODE_TRANSIT = "transit";
+	private String travelModes = TRAVEL_MODE_DRIVING;
+	private Menu menu;
+	private Context context;
+	
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.map_layout);
+
+		context = this.getApplicationContext();
+		// Initializing
+		markerPoints = new ArrayList<LatLng>();
+
+		// Getting reference to SupportMapFragment of the activity_main
+		SupportMapFragment fm = (SupportMapFragment) getSupportFragmentManager()
+				.findFragmentById(R.id.map);
+
+		// Getting Map for the SupportMapFragment
+		map = fm.getMap();
+		Marker centreMarker = map.addMarker(new MarkerOptions().position(HK_POINT).title("¤¤Àô").snippet("DCHK"));
+		// Move the camera instantly to NKUT with a zoom of 16.
+		map.moveCamera(CameraUpdateFactory.newLatLngZoom(HK_POINT, 16));
+
+		if (map != null) {
+
+			// Enable MyLocation Button in the Map
+			map.setMyLocationEnabled(true);
+
+			// Setting onclick event listener for the map
+			map.setOnMapClickListener(new OnMapClickListener() {
+
+				@Override
+				public void onMapClick(LatLng point) {
+
+					// Already two locations
+					if (markerPoints.size() > 1) {
+						markerPoints.clear();
+						map.clear();
+					}
+
+					// Adding new item to the ArrayList
+					markerPoints.add(point);
+
+					// Creating MarkerOptions
+					MarkerOptions options = new MarkerOptions();
+
+					// Setting the position of the marker
+					options.position(point);
+					
+					if (markerPoints.size() == 1) {
+						// green for start point
+						options.icon(BitmapDescriptorFactory
+								.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));																	
+					} else if (markerPoints.size() == 2) {
+						// yellow for end point
+						options.icon(BitmapDescriptorFactory
+								.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW));
+					}
+
+					// Add new marker to the Google Map Android API V2
+					map.addMarker(options);
+
+					// Checks, whether start and end locations are captured
+					if (markerPoints.size() >= 2) {
+						LatLng origin = markerPoints.get(0);
+						LatLng dest = markerPoints.get(1);
+
+						// Getting URL to the Google Directions API
+						String url = getDirectionsUrl(origin, dest);
+						Log.i(TAG, url);
+
+						DownloadTask downloadTask = new DownloadTask();
+
+						// Start downloading json data from Google Directions
+						// API
+						downloadTask.execute(url);
+					}
+
+				}
+			});
+		}
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.main, menu);
+		this.menu = menu;
+		return true;
+	}
+	
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+	    // Handle item selection
+		
+		MenuItem item1 = menu.findItem(R.id.action_driving);
+		MenuItem item2 = menu.findItem(R.id.action_walking);
+		MenuItem item3 = menu.findItem(R.id.action_bicycling);
+		MenuItem item4 = menu.findItem(R.id.action_transit);
+		
+		item1.setChecked(false);
+		item2.setChecked(false);
+		item3.setChecked(false);
+		item4.setChecked(false);
+		
+		Toast.makeText(this, "Search by " + String.valueOf(item.getTitle()), Toast.LENGTH_SHORT).show();
+		item.setChecked(true);
+		
+	    switch (item.getItemId()) {
+	        case R.id.action_driving:
+	        	travelModes = TRAVEL_MODE_DRIVING;
+	            return true;
+	            
+	        case R.id.action_walking:
+	        	travelModes = TRAVEL_MODE_WALKING;
+	            return true;
+	            
+	        case R.id.action_bicycling:
+	        	travelModes = TRAVEL_MODE_BICYCLING;
+	        	return true;
+	        
+	        case R.id.action_transit:
+	        	travelModes = TRAVEL_MODE_TRANSIT;
+	        	return true;	
+	        	
+	        default:
+	            return super.onOptionsItemSelected(item);
+	    }
+	}
+
+
+	private String getDirectionsUrl(LatLng origin, LatLng dest) {
+
+		// Origin of route
+		String str_origin = "origin=" + origin.latitude + ","
+				+ origin.longitude;
+
+		// Destination of route
+		String str_dest = "destination=" + dest.latitude + "," + dest.longitude;
+
+		// Sensor enabled
+		String sensor = "sensor=false";
+		
+		// travel mode
+		String mode = "mode=" + travelModes;
+
+		// for mode == transit
+		long unixTime = System.currentTimeMillis() / 1000L;
+		String departure_time = "departure_time=" + unixTime; 
+		
+		String language = "language=" + "en";
+		
+		// Building the parameters to the web service
+		String parameters = str_origin + "&" + str_dest + "&" + sensor + "&" + mode + "&" + language;
+
+		// Output format
+		String output = "json";
+
+		// Building the url to the web service
+		String url = "https://maps.googleapis.com/maps/api/directions/"
+				+ output + "?" + parameters;
+
+		return url;
+	}
+
+	private String downloadUrl(String strUrl) throws IOException {
+		String data = "";
+		InputStream iStream = null;
+		HttpURLConnection urlConnection = null;
+		try {
+			URL url = new URL(strUrl);
+
+			// Creating an http connection to communicate with url
+			urlConnection = (HttpURLConnection) url.openConnection();
+
+			// Connecting to url
+			urlConnection.connect();
+
+			// Reading data from url
+			iStream = urlConnection.getInputStream();
+
+			BufferedReader br = new BufferedReader(new InputStreamReader(
+					iStream));
+
+			StringBuffer sb = new StringBuffer();
+
+			String line = "";
+			while ((line = br.readLine()) != null) {
+				sb.append(line);
+			}
+
+			data = sb.toString();
+
+			br.close();
+
+		} catch (Exception e) {
+			Log.d("Exception while downloading url", e.toString());
+		} finally {
+			iStream.close();
+			urlConnection.disconnect();
+		}
+		return data;
+	}
+
+	// Fetches data from url passed
+	private class DownloadTask extends AsyncTask<String, Void, String> {
+
+		// Downloading data in non-ui thread
+		@Override
+		protected String doInBackground(String... url) {
+
+			// For storing data from web service
+			String data = "";
+
+			try {
+				// Fetching the data from web service
+				data = downloadUrl(url[0]);
+			} catch (Exception e) {
+				Log.d("Background Task", e.toString());
+			}
+			return data;
+		}
+
+		// Executes in UI thread, after the execution of
+		// doInBackground()
+		@Override
+		protected void onPostExecute(String result) {
+			super.onPostExecute(result);
+
+			ParserTask parserTask = new ParserTask();
+
+			// Invokes the thread for parsing the JSON data
+			parserTask.execute(result);
+
+		}
+	}
+
+	// internal class
+	private class ParserTask extends
+			AsyncTask<String, Integer, List<DirectionsData>> {
+
+		// Parsing the data in non-ui thread
+		@Override
+		protected List<DirectionsData> doInBackground(
+				String... jsonData) {
+
+			JSONObject jObject;
+			List<DirectionsData> routes = null;
+
+			try {
+				jObject = new JSONObject(jsonData[0]);
+				DirectionsJSONParser parser = new DirectionsJSONParser();
+
+				// Starts parsing data
+				routes = parser.parse(jObject);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			return routes;
+		}
+
+		// Executes in UI thread, after the parsing process
+		@Override
+		protected void onPostExecute(List<DirectionsData> result) {
+			ArrayList<LatLng> points = null;
+			PolylineOptions lineOptions = null;
+
+			// Traversing through all the routes
+			for (int i = 0; i < result.size(); i++) {
+				points = new ArrayList<LatLng>();
+				lineOptions = new PolylineOptions();
+
+				// Fetching i-th route
+				List<HashMap<String, String>> path = result.get(i).path;
+				List<String> html_instructions = result.get(i).html_instructions;
+				for(int k = 0; k < html_instructions.size(); k++) {
+					Log.i(TAG, k + "-->" + html_instructions);
+				}
+				
+				// Fetching all the points in i-th route
+				for (int j = 0; j < path.size(); j++) {
+					HashMap<String, String> point = path.get(j);
+
+					double lat = Double.parseDouble(point.get("lat"));
+					double lng = Double.parseDouble(point.get("lng"));
+					LatLng position = new LatLng(lat, lng);
+
+					points.add(position);
+				}
+
+				// Adding all the points in the route to LineOptions
+				lineOptions.addAll(points);
+				lineOptions.width(8);
+				lineOptions.color(Color.BLUE);
+			}
+
+			// Drawing polyline in the Google Map for the i-th route
+			if(lineOptions != null)
+			{
+				map.addPolyline(lineOptions);
+			}
+			else
+			{
+				Toast.makeText(context, "No Result.", Toast.LENGTH_SHORT).show();
+			}
+		}
+	}
+}

@@ -1,0 +1,27 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+
+    <item
+        android:id="@+id/action_driving"
+        android:orderInCategory="100"
+        android:showAsAction="never"
+        android:title="@string/action_driving" android:checkable="true"/>
+    
+        <item
+        android:id="@+id/action_walking"
+        android:orderInCategory="100"
+        android:showAsAction="never"
+        android:title="@string/action_walking" android:checkable="false"/>
+        
+        <item
+        android:id="@+id/action_bicycling"
+        android:orderInCategory="100"
+        android:showAsAction="never"
+        android:title="@string/action_bicycling" android:checkable="true" android:checked="true"/>
+            
+        <item
+        android:id="@+id/action_transit"
+        android:orderInCategory="100"
+        android:showAsAction="never"
+        android:title="@string/action_transit" android:checkable="true" android:checked="true"/>
+               
+</menu>
